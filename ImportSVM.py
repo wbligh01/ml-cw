@@ -4,12 +4,11 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import RandomizedSearchCV
-
+from sklearn.utils import resample
 '''
 
                         Data Preparation
@@ -17,14 +16,19 @@ from sklearn.model_selection import RandomizedSearchCV
 '''
 
 # Import the data from directory using pandas
-data = pd.read_csv("H:/Uni/Year 2/ML Coursework/EcoliData.csv", header = 0)
+data = pd.read_csv("H:/Uni/Year 2/ML Coursework/ml-cw/EcoliData.csv", header = 0)
+
+# The sample size on a few of the classes is very small, use random resampling in order to boost the sample sizes
+
+resampled_data = resample(data, n_samples = 700, replace = True, random_state = 100)
+
 # Encode the string predictor to produce categorical 
 labelencoder = LabelEncoder()
-data.loc[:,'localization site'] = labelencoder.fit_transform(data.loc[:,'localization site'])
+resampled_data.loc[:,'localization site'] = labelencoder.fit_transform(resampled_data.loc[:,'localization site'])
 
-x = data.loc[:, 'mcg':'alm2']
+x = resampled_data.loc[:, 'mcg':'alm2']
 
-y = data.loc[:,'localization site']
+y = resampled_data.loc[:,'localization site']
 
 X_train, X_test, y_train, y_test = train_test_split(x,y,random_state = 0)
 
@@ -108,11 +112,11 @@ feature_importances = pd.DataFrame(clf.feature_importances_, index = X_train.col
 
 
 # Number of trees in random forest
-n_estimators = [int(x) for x in np.linspace(start = 200, stop = 2000, num = 10)]
+n_estimators = [int(x) for x in np.linspace(start = 50, stop = 2000, num = 10)]
 # Number of features to consider at every split
 max_features = ['auto', 'sqrt']
 # Maximum number of levels in tree
-max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
+max_depth = [int(x) for x in np.linspace(10, 200, num = 10)]
 max_depth.append(None)
 # Minimum number of samples required to split a node
 min_samples_split = [2, 5, 10]
@@ -129,35 +133,34 @@ random_grid = {'n_estimators': n_estimators,
                'bootstrap': bootstrap}
 print('\n\n')
 print(random_grid)
-{'bootstrap': [True, False],
- 'max_depth': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, None],
- 'max_features': ['auto', 'sqrt'],
- 'min_samples_leaf': [1, 2, 4],
- 'min_samples_split': [2, 5, 10],
- 'n_estimators': [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000]}
 
 
 
-rf_random = RandomizedSearchCV(estimator = clf, param_distributions = random_grid, n_iter = 100, cv = 3, verbose=2, random_state=42, n_jobs = -1)
+print("\nSetting up randomised search hyperparameter tuning")
 
+rf_random = RandomizedSearchCV(estimator = clf, param_distributions = random_grid, n_iter = 100, cv = 3, verbose=5, random_state=42, n_jobs = -1)
+
+print("\nFitting to training data")
 
 rf_random.fit(X_train, y_train)
 
 
+
 def evaluate(model, test_features, test_labels):
     predictions = model.predict(test_features)
-    acc = accuracy(confusion_matrix(predictions, test_labels))
+    acc = accuracy(confusion_matrix(predictions, test_labels)) * 100
     print('Model Performance')
     print('Accuracy = {:0.2f}%.'.format(acc))
     return accuracy
     
     
-evaluate(clf, X_test, y_test)
+# evaluate(clf, X_test, y_test)
 
 
+print("\n\nDone.")
 
 
+tuned_model = rf_random.best_estimator_
 
-
-
+evaluate(tuned_model, X_test, y_test)
 
